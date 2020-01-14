@@ -158,7 +158,11 @@ pub mod middleware;
 #[allow(unreachable_pub, unused)]
 mod middleware;
 
-mod agent;
+//mod agent;
+mod in_thread_agent;
+
+use crate::in_thread_agent as agent;
+
 mod body;
 mod client;
 mod error;
