@@ -618,7 +618,7 @@ impl HttpClient {
         let (easy, future) = self.create_easy_handle(request)?;
 
         // Send the request to the agent to be executed.
-        self.agent.submit_request(easy)?;
+        self.agent.submit_request(easy)?.await?;
 
         // Await for the response headers.
         let response = future.await?;
