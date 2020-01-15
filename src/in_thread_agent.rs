@@ -140,7 +140,19 @@ impl Future for RequestFuture {
         match self.multi.perform() {
             Ok(0) => {
                 if let Some(handle) = self.handle.take() {
+                    let mut result_from_curl = None;
+                    self.multi.messages(|message| {
+                        if let Some(result) = message.result() {
+                            if let Ok(token) = message.token() {
+                                result_from_curl = Some(result);
+                            }
+                        }
+                    });
+
                     let mut request = self.multi.remove2(handle)?;
+                    if let Some(result_from_curl) = result_from_curl {
+                        request.get_mut().on_result(result_from_curl);
+                    }
                     request.get_mut().on_result(Ok(()));
                 }
 
