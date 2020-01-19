@@ -608,7 +608,7 @@ impl HttpClient {
         request
             .headers_mut()
             .entry(http::header::USER_AGENT)
-            .or_insert(USER_AGENT.parse().unwrap());
+            .or_insert_with(|| USER_AGENT.parse().unwrap());
 
         // Apply any request middleware, starting with the outermost one.
         for middleware in self.middleware.iter().rev() {
