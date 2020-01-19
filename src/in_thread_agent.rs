@@ -96,15 +96,51 @@ impl Handle {
     /// Begin executing a request with this agent.
     pub(crate) fn submit_request(&self, mut request: EasyHandle) -> Result<impl Future<Output=Result<Option<Easy2Handle<RequestHandler>>, curl::MultiError>> + '_, Error> {
         Ok(RequestFuture {
-            multi: &self.multi,
+            agent: self,
             request: Some(request),
             handle: None,
         })
     }
+
+    pub(crate) fn perform_and_send_result_to_handle(&self, handle: &mut Option<Easy2Handle<RequestHandler>>) -> Poll<Result<(), curl::MultiError>> {
+        match self.multi.perform() {
+            Ok(0) => {
+                if let Some(handle) = handle.take() {
+                    let mut result_from_curl = None;
+                    self.multi.messages(|message| {
+                        if let Some(result) = message.result() {
+                            if let Ok(token) = message.token() {
+                                result_from_curl = Some(result);
+                            }
+                        }
+                    });
+
+                    let mut request = self.multi.remove2(handle)?;
+                    if let Some(result_from_curl) = result_from_curl {
+                        request.get_mut().on_result(result_from_curl);
+                    }
+                    request.get_mut().on_result(Ok(()));
+                }
+
+                Poll::Ready(Ok(()))
+            }
+            Ok(_) => {
+                Poll::Pending
+            }
+            Err(e) => {
+                if let Some(handle) = handle.take() {
+                    let mut request = self.multi.remove2(handle)?;
+                    request.get_mut().on_result(Err(curl::Error::new(e.code() as  _)));
+                }
+
+                Poll::Ready(Err(e))
+            }
+        }
+    }
 }
 
 struct RequestFuture<'a> {
-    multi: &'a curl::multi::Multi,
+    agent: &'a Handle,
     request: Option<EasyHandle>,
     handle: Option<Easy2Handle<RequestHandler>>,
 }
@@ -125,7 +161,7 @@ impl Future for RequestFuture<'_> {
                 cx.waker().clone(),
             );
 
-            self.handle = Some(self.multi.add2(request)?);
+            self.handle = Some(self.agent.multi.add2(request)?);
 
             // TODO: Remove this.
             cx.waker().clone().wake();
@@ -133,47 +169,18 @@ impl Future for RequestFuture<'_> {
             return Poll::Pending;
         }
 
-        match self.multi.perform() {
-            Ok(0) => {
-                if let Some(handle) = self.handle.take() {
-                    let mut result_from_curl = None;
-                    self.multi.messages(|message| {
-                        if let Some(result) = message.result() {
-                            if let Ok(token) = message.token() {
-                                result_from_curl = Some(result);
-                            }
-                        }
-                    });
-
-                    let mut request = self.multi.remove2(handle)?;
-                    if let Some(result_from_curl) = result_from_curl {
-                        request.get_mut().on_result(result_from_curl);
-                    }
-                    request.get_mut().on_result(Ok(()));
-                }
-
-                Poll::Ready(Ok(None))
-            }
-            Ok(_) => {
-                // TODO: Remove this.
-                cx.waker().clone().wake();
-
+        match self.agent.perform_and_send_result_to_handle(&mut self.handle) {
+            Poll::Ready(Ok(())) => Poll::Ready(Ok(self.handle.take())),
+            Poll::Ready(Err(e)) => Poll::Ready(Err(e)),
+            Poll::Pending => {
                 if self.handle.as_ref()
                     .map(|handle| handle.get_ref().is_complete()).unwrap_or(false) {
                     Poll::Ready(Ok(self.handle.take()))
                 } else {
+                    cx.waker().clone().wake();
                     Poll::Pending
                 }
-
-            }
-            Err(e) => {
-                if let Some(handle) = self.handle.take() {
-                    let mut request = self.multi.remove2(handle)?;
-                    request.get_mut().on_result(Err(curl::Error::new(e.code() as  _)));
-                }
-
-                Poll::Ready(Err(e))
-            }
+            },
         }
     }
 }

@@ -842,31 +842,14 @@ impl AsyncRead for ResponseBody {
         cx: &mut Context<'_>,
         buf: &mut [u8],
     ) -> Poll<io::Result<usize>> {
+        self.inner.handle.as_ref().map(|handle| handle.unpause_write());
+
         if self.inner.handle.is_some() {
-            let work_count = self._agent.multi.perform()?;
+            let agent = self._agent.clone();
 
-            self.inner.handle.as_ref().map(|handle| handle.unpause_write());
-
-            if work_count == 0 {
-                if let Some(handle) = self.inner.handle.take() {
-                    let mut result_from_curl = None;
-
-                    self._agent.multi.messages(|message| {
-                        if let Some(result) = message.result() {
-                            if let Ok(token) = message.token() {
-                                result_from_curl = Some(result);
-                            }
-                        }
-                    });
-
-                    let mut request = self._agent.multi.remove2(handle)?;
-                    if let Some(result_from_curl) = result_from_curl {
-                        request.get_mut().on_result(result_from_curl);
-                    }
-                    request.get_mut().on_result(Ok(()));
-                }
-            } else {
-                cx.waker().clone().wake();
+            match agent.perform_and_send_result_to_handle(&mut self.inner.handle)? {
+                Poll::Pending => cx.waker().clone().wake(),
+                _ => {},
             }
         }
 
