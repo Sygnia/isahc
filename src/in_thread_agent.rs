@@ -58,31 +58,6 @@ impl AgentBuilder {
         let max_connections_per_host = self.max_connections_per_host;
         let connection_cache_size = self.connection_cache_size;
 
-        let handle = Handle {
-            max_connections,
-            max_connections_per_host,
-            connection_cache_size,
-        };
-
-        Ok(handle)
-    }
-}
-
-/// A handle which executes requests in the current thread.
-///
-/// Dropping the handle will cause the agent thread to shut down and abort any
-/// pending transfers.
-#[derive(Debug)]
-pub(crate) struct Handle {
-    max_connections: usize,
-    max_connections_per_host: usize,
-    connection_cache_size: usize,
-}
-
-
-impl Handle {
-    /// Begin executing a request with this agent.
-    pub(crate) fn submit_request(&self, mut request: EasyHandle) -> Result<impl Future<Output=Result<(), curl::MultiError>>, Error> {
         let mut multi = curl::multi::Multi::new();
 
 
@@ -99,25 +74,46 @@ impl Handle {
             multi.set_max_connects(self.connection_cache_size)?;
         }
 
+        let handle = Handle {
+            multi
+        };
+
+        Ok(handle)
+    }
+}
+
+/// A handle which executes requests in the current thread.
+///
+/// Dropping the handle will cause the agent thread to shut down and abort any
+/// pending transfers.
+#[derive(Debug)]
+pub(crate) struct Handle {
+    pub multi: curl::multi::Multi,
+}
+
+
+impl Handle {
+    /// Begin executing a request with this agent.
+    pub(crate) fn submit_request(&self, mut request: EasyHandle) -> Result<impl Future<Output=Result<Option<Easy2Handle<RequestHandler>>, curl::MultiError>> + '_, Error> {
         Ok(RequestFuture {
-            multi,
+            multi: &self.multi,
             request: Some(request),
             handle: None,
         })
     }
 }
 
-struct RequestFuture {
-    multi: curl::multi::Multi,
+struct RequestFuture<'a> {
+    multi: &'a curl::multi::Multi,
     request: Option<EasyHandle>,
     handle: Option<Easy2Handle<RequestHandler>>,
 }
 
 #[allow(unsafe_code)]
-unsafe impl Send for RequestFuture {}
+unsafe impl Send for RequestFuture<'_> {}
 
-impl Future for RequestFuture {
-    type Output = Result<(), curl::MultiError>;
+impl Future for RequestFuture<'_> {
+    type Output = Result<Option<Easy2Handle<RequestHandler>>, curl::MultiError>;
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
         if let Some(mut request) = self.request.take() {
@@ -156,13 +152,19 @@ impl Future for RequestFuture {
                     request.get_mut().on_result(Ok(()));
                 }
 
-                Poll::Ready(Ok(()))
+                Poll::Ready(Ok(None))
             }
             Ok(_) => {
                 // TODO: Remove this.
                 cx.waker().clone().wake();
 
-                Poll::Pending
+                if self.handle.as_ref()
+                    .map(|handle| handle.get_ref().is_complete()).unwrap_or(false) {
+                    Poll::Ready(Ok(self.handle.take()))
+                } else {
+                    Poll::Pending
+                }
+
             }
             Err(e) => {
                 if let Some(handle) = self.handle.take() {
@@ -186,7 +188,7 @@ mod tests {
 
     #[test]
     fn traits() {
-        is_send::<Handle>();
-        is_sync::<Handle>();
+        //is_send::<Handle>();
+        //is_sync::<Handle>();
     }
 }

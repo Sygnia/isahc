@@ -2,7 +2,7 @@ use crate::{parse, response::EffectiveUri, Metrics, Body, Error};
 use crossbeam_utils::atomic::AtomicCell;
 use curl::easy::{InfoType, ReadError, SeekResult, WriteError};
 use curl_sys::CURL;
-use futures_channel::oneshot::Sender;
+use futures_channel::oneshot::{Sender, Receiver};
 use futures_io::{AsyncRead, AsyncWrite};
 use futures_util::{
     pin_mut,
@@ -22,6 +22,7 @@ use std::{
     sync::Arc,
     task::{Context, Poll, Waker},
 };
+use curl::multi::Easy2Handle;
 
 /// Manages the state of a single request/response life cycle.
 ///
@@ -99,7 +100,7 @@ struct Shared {
 
 impl RequestHandler {
     /// Create a new request handler and an associated response future.
-    pub(crate) fn new(request_body: Body) -> (Self, impl Future<Output = Result<Response<ResponseBodyReader>, Error>>) {
+    pub(crate) fn new(request_body: Body) -> (Self, ResponseBodyReader) {
         let (sender, receiver) = futures_channel::oneshot::channel();
         let shared = Arc::new(Shared {
             id: AtomicCell::new(usize::max_value()),
@@ -123,21 +124,14 @@ impl RequestHandler {
             handle: ptr::null_mut(),
         };
 
-        // Create a future that resolves when the handler receives the response
-        // headers.
-        let future = async move {
-            let builder = receiver.await
-                .map_err(|_| Error::Aborted)??;
-
-            let reader = ResponseBodyReader {
-                inner: response_body_reader,
-                shared,
-            };
-
-            builder.body(reader).map_err(Error::InvalidHttpFormat)
+        let response_body_reader_handler = ResponseBodyReader {
+            inner: response_body_reader,
+            shared,
+            receiver: Some(receiver),
+            handle: None,
         };
 
-        (handler, future)
+        (handler, response_body_reader_handler)
     }
 
     fn is_future_canceled(&self) -> bool {
@@ -168,6 +162,10 @@ impl RequestHandler {
         self.handle = handle;
         self.request_body_waker = Some(request_waker);
         self.response_body_waker = Some(response_waker);
+    }
+
+    pub(crate) fn is_complete(&self) -> bool {
+        self.sender.is_none()
     }
 
     /// Handle a result produced by curl for this handler's current transfer.
@@ -507,6 +505,8 @@ impl fmt::Debug for RequestHandler {
 pub(crate) struct ResponseBodyReader {
     inner: pipe::PipeReader,
     shared: Arc<Shared>,
+    pub receiver: Option<Receiver<Result<http::response::Builder, Error>>>,
+    pub handle: Option<Easy2Handle<RequestHandler>>,
 }
 
 impl AsyncRead for ResponseBodyReader {
