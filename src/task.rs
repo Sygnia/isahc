@@ -7,6 +7,7 @@ use std::net::{SocketAddr, UdpSocket};
 use std::sync::Arc;
 use std::task::{Context, Poll, Waker};
 use std::thread::{self, Thread};
+use std::io;
 
 /// Extension trait for efficiently blocking on a future.
 pub(crate) trait Join: Future {
@@ -64,6 +65,26 @@ impl WakerExt for Waker {
     }
 }
 
+pub(crate) fn bind_udp_sock() -> io::Result<UdpSocket> {
+    let mut last_err = match UdpSocket::bind("127.0.0.1:0") {
+        Ok(s) => return Ok(s),
+        Err(e) => e,
+    };
+
+    for port in 45000..60000u16 {
+        match UdpSocket::bind(
+            SocketAddr::new("127.0.0.1".parse().unwrap(), port)
+        ) {
+            Ok(s) => return Ok(s),
+            Err(e) => {
+                last_err = e;
+            },
+        }
+    }
+
+    Err(last_err)
+}
+
 /// A waker that sends a signal to an UDP socket.
 ///
 /// This kind of waker is used to wake up agent threads while they are polling.
@@ -76,7 +97,7 @@ pub(crate) struct UdpWaker {
 impl UdpWaker {
     /// Create a waker by connecting to the wake address of an UDP server.
     pub(crate) fn connect(addr: SocketAddr) -> Result<Self, Error> {
-        let socket = UdpSocket::bind("127.0.0.1:0")?;
+        let socket = bind_udp_sock()?;
         socket.connect(addr)?;
 
         Ok(Self { socket })

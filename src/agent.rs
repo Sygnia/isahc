@@ -9,7 +9,7 @@
 //! a specialized task executor for tasks related to requests.
 
 use crate::handler::RequestHandler;
-use crate::task::{UdpWaker, WakerExt};
+use crate::task::{UdpWaker, WakerExt, bind_udp_sock};
 use crate::Error;
 use crossbeam_channel::{Receiver, Sender};
 use crossbeam_utils::sync::WaitGroup;
@@ -57,7 +57,7 @@ impl AgentBuilder {
         let create_start = Instant::now();
 
         // Create an UDP socket for the agent thread to listen for wakeups on.
-        let wake_socket = UdpSocket::bind("127.0.0.1:0")?;
+        let wake_socket = bind_udp_sock()?;
         wake_socket.set_nonblocking(true)?;
         let wake_addr = wake_socket.local_addr()?;
         let waker = futures_util::task::waker(Arc::new(UdpWaker::connect(wake_addr)?));
