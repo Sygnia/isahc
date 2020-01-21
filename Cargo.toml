@@ -22,7 +22,7 @@ default = ["http2", "static-curl"]
 cookies = ["chrono"]
 http2 = ["curl/http2"]
 json = ["serde", "serde_json"]
-psl = ["parking_lot", "publicsuffix"]
+psl = ["publicsuffix"]
 spnego = ["curl-sys/spnego"]
 static-curl = ["curl/static-curl"]
 static-ssl = ["curl/static-ssl"]
@@ -53,7 +53,6 @@ features = ["io"]
 
 [dependencies.parking_lot]
 version = "0.10"
-optional = true
 
 [dependencies.publicsuffix]
 version = "1.5"

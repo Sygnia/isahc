@@ -27,6 +27,7 @@ use std::{
 };
 use futures_util::future::LocalBoxFuture;
 use curl::multi::Easy2Handle;
+use parking_lot::Mutex;
 
 lazy_static! {
     static ref USER_AGENT: String = format!(
@@ -214,7 +215,7 @@ impl HttpClientBuilder {
     /// If the client fails to initialize, an error will be returned.
     pub fn build(self) -> Result<HttpClient, Error> {
         Ok(HttpClient {
-            agent: Arc::new(self.agent_builder.spawn()?),
+            agent: Arc::new(Mutex::new(self.agent_builder.spawn()?)),
             defaults: self.defaults,
             middleware: self.middleware,
         })
@@ -304,7 +305,7 @@ impl fmt::Debug for HttpClientBuilder {
 /// what can be configured.
 pub struct HttpClient {
     /// This is how we talk to our background agent thread.
-    agent: Arc<agent::Handle>,
+    agent: Arc<Mutex<agent::Handle>>,
     /// Map of config values that should be used to configure execution if not
     /// specified in a request.
     defaults: http::Extensions,
@@ -618,7 +619,7 @@ impl HttpClient {
         // Create and configure a curl easy handle to fulfil the request.
         let (easy, mut reader) = self.create_easy_handle(request)?;
 
-        let response_handle = self.agent.submit_request(easy)?.await?;
+        let response_handle = self.agent.lock().submit_request(easy)?.await?;
 
         reader.handle = response_handle;
 
@@ -643,7 +644,7 @@ impl HttpClient {
                 inner: reader,
                 // Extend the lifetime of the agent by including a reference
                 // to its handle in the response body.
-                _agent: self.agent.clone(),
+                agent: self.agent.clone(),
             };
 
             if let Some(len) = content_length {
@@ -833,7 +834,7 @@ impl<'c> fmt::Debug for ResponseFuture<'c> {
 /// alive until at least this transfer is complete.
 struct ResponseBody {
     inner: ResponseBodyReader,
-    _agent: Arc<agent::Handle>,
+    agent: Arc<Mutex<agent::Handle>>,
 }
 
 impl AsyncRead for ResponseBody {
@@ -845,9 +846,11 @@ impl AsyncRead for ResponseBody {
         self.inner.handle.as_ref().map(|handle| handle.unpause_write());
 
         if self.inner.handle.is_some() {
-            let agent = self._agent.clone();
+            let agent = self.agent.clone();
 
-            match agent.perform_and_send_result_to_handle(&mut self.inner.handle)? {
+            let mutex_guard = agent.lock();
+
+            match mutex_guard.perform_and_send_result_to_handle(&mut self.inner.handle)? {
                 Poll::Pending => cx.waker().clone().wake(),
                 _ => {},
             }

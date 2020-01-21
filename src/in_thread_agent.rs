@@ -91,6 +91,8 @@ pub(crate) struct Handle {
     pub multi: curl::multi::Multi,
 }
 
+#[allow(unsafe_code)]
+unsafe impl Send for Handle {}
 
 impl Handle {
     /// Begin executing a request with this agent.
