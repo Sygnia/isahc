@@ -127,6 +127,10 @@ impl Handle {
                 Poll::Ready(Ok(()))
             }
             Ok(_) => {
+                // Currently there is no way to tell the external loop to "wait" for io on
+                // file descriptors (extracted via `fdset` call).
+                // So we block the entire thread for a little while, to avoid spinning endlessly.
+                self.multi.wait(&mut [], Duration::from_millis(100))?;
                 Poll::Pending
             }
             Err(e) => {
