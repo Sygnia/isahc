@@ -24,6 +24,9 @@ use std::{
 };
 use curl::multi::Easy2Handle;
 
+#[cfg(feature = "ssl-ctx")]
+use std::os::raw::c_void;
+
 /// Manages the state of a single request/response life cycle.
 ///
 /// During the lifetime of a handler, it will receive callbacks from curl about
@@ -76,6 +79,10 @@ pub(crate) struct RequestHandler {
     /// valid at least for the lifetime of this struct (assuming all other
     /// invariants are upheld).
     handle: *mut CURL,
+
+    // Callback for ssl_ctx
+    #[cfg(feature = "ssl-ctx")]
+    ssl_ctx_cb: Option<Box<dyn Fn(*mut c_void) -> Result<(), crate::Error>>>,
 }
 
 // Would be send implicitly except for the raw CURL pointer.
@@ -122,6 +129,9 @@ impl RequestHandler {
             response_body_waker: None,
             metrics: None,
             handle: ptr::null_mut(),
+
+            #[cfg(feature = "ssl-ctx")]
+            ssl_ctx_cb: None,
         };
 
         let response_body_reader_handler = ResponseBodyReader {
@@ -254,6 +264,13 @@ impl RequestHandler {
             .map(|ptr| unsafe { CStr::from_ptr(ptr) })
             .and_then(|cstr| cstr.to_str().ok())
             .and_then(|s| s.parse().ok())
+    }
+
+    #[cfg(feature = "ssl-ctx")]
+    pub fn ssl_ctx_function<F>(&mut self, f: F)
+        where F: Fn(*mut c_void) -> Result<(), crate::Error> + Send + 'static
+    {
+        self.ssl_ctx_cb = Some(Box::new(f));
     }
 }
 
@@ -490,6 +507,15 @@ impl curl::easy::Handler for RequestHandler {
             InfoType::HeaderIn | InfoType::DataIn => log::trace!(target: "isahc::wire", "<< {}", format_byte_string(data)),
             InfoType::HeaderOut | InfoType::DataOut => log::trace!(target: "isahc::wire", ">> {}", format_byte_string(data)),
             _ => (),
+        }
+    }
+
+    #[cfg(feature = "ssl-ctx")]
+    fn ssl_ctx(&mut self, cx: *mut c_void) -> Result<(), curl::Error> {
+        match &self.ssl_ctx_cb {
+            Some(ssl_ctx) =>
+                ssl_ctx(cx).map_err(|_| curl::Error::new(curl_sys::CURLE_SSL_CONNECT_ERROR)),
+            None => Ok(())
         }
     }
 }

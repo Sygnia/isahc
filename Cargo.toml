@@ -27,6 +27,7 @@ spnego = ["curl-sys/spnego"]
 static-curl = ["curl/static-curl"]
 static-ssl = ["curl/static-ssl"]
 middleware-api = []
+ssl-ctx = []
 
 [dependencies]
 bytes = "0.5"

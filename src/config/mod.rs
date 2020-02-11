@@ -26,6 +26,9 @@ pub use dns::DnsCache;
 pub use redirect::RedirectPolicy;
 pub use ssl::{CaCertificate, ClientCertificate, PrivateKey, SslOption};
 
+#[cfg(feature = "ssl-ctx")]
+pub use ssl::SslCtxCallback;
+
 pub(crate) use self::private::ConfigurableBase;
 
 /// Provides additional methods when building a request for configuring various
@@ -403,6 +406,11 @@ pub trait Configurable: ConfigurableBase {
     /// By default metrics are disabled.
     fn metrics(self, enable: bool) -> Self {
         self.configure(EnableMetrics(enable))
+    }
+
+    #[cfg(feature = "ssl-ctx")]
+    fn ssl_ctx_cb(self, options: SslCtxCallback) -> Self {
+        self.configure(options)
     }
 }
 

@@ -721,6 +721,12 @@ impl HttpClient {
             ]
         );
 
+        #[cfg(feature = "ssl-ctx")] {
+            if let Some(extension) = parts.extensions.get::<SslCtxCallback>().or_else(|| self.defaults.get()) {
+                easy.get_mut().ssl_ctx_function(extension.ssl_ctx_cb)
+            }
+        }
+
         // Enable automatic response decoding, unless overridden by the user via
         // a custom Accept-Encoding value.
         easy.accept_encoding(

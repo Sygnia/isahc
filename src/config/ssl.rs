@@ -8,6 +8,9 @@ use std::{
     path::PathBuf,
 };
 
+#[cfg(feature = "ssl-ctx")]
+use std::os::raw::c_void;
+
 /// A public key certificate file.
 #[derive(Clone, Debug)]
 pub struct ClientCertificate {
@@ -229,6 +232,22 @@ impl SetOpt for SslOption {
         easy.ssl_options(&opt)?;
         easy.ssl_verify_peer(!self.contains(Self::DANGER_ACCEPT_INVALID_CERTS))?;
         easy.ssl_verify_host(!self.contains(Self::DANGER_ACCEPT_INVALID_HOSTS))
+    }
+}
+
+
+#[cfg(feature = "ssl-ctx")]
+#[derive(Clone, Debug)]
+pub struct SslCtxCallback {
+    pub ssl_ctx_cb: fn(*mut c_void) -> Result<(), crate::Error>,
+}
+
+#[cfg(feature = "ssl-ctx")]
+impl SslCtxCallback {
+    pub fn function(f: fn(*mut c_void) -> Result<(), crate::Error>) -> Self {
+        Self {
+            ssl_ctx_cb: f
+        }
     }
 }
 
