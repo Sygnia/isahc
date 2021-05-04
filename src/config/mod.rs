@@ -21,10 +21,12 @@ pub(crate) mod dns;
 pub(crate) mod proxy;
 pub(crate) mod redirect;
 pub(crate) mod ssl;
+pub(crate) mod pinned_public_keys;
 
 pub use dns::DnsCache;
 pub use redirect::RedirectPolicy;
 pub use ssl::{CaCertificate, ClientCertificate, PrivateKey, SslOption};
+use pinned_public_keys::PinnedPublicKeys;
 
 pub(crate) use self::private::ConfigurableBase;
 
@@ -403,6 +405,43 @@ pub trait Configurable: ConfigurableBase {
     /// By default metrics are disabled.
     fn metrics(self, enable: bool) -> Self {
         self.configure(EnableMetrics(enable))
+    }
+
+    /// Set public key pinning
+    ///
+    /// When negotiating a TLS or SSL connection, the server sends a certificate
+    /// indicating its identity. A public key is extracted from this certificate
+    /// and if it does not exactly match the public key provided to this option,
+    /// curl will abort the connection before sending or receiving any data.
+    ///
+    /// `keys` can contain the file name of your pinned public key. The file format expected is
+    /// "PEM" or "DER". `keys` can also can also be a list of base64 encoded
+    /// sha256 hashes preceded by "sha256//"
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use isahc::config::*;
+    /// # use isahc::prelude::*;
+    /// #
+    /// let client = HttpClient::builder()
+    ///     .pinned_public_keys(&["/etc/publickey.der"])
+    ///     .build()?;
+    /// # Ok::<(), isahc::Error>(())
+    /// ```
+    ///
+    /// ```
+    /// # use isahc::config::*;
+    /// # use isahc::prelude::*;
+    /// #
+    /// let client = HttpClient::builder()
+    ///     .pinned_public_keys(&["sha256//YhKJKSzoTt2b5FP18fvpHo7fJYqQCjAa3HWY3tvRMwE=",
+    ///                           "sha256//t62CeU2tQiqkexU74Gxa2eg7fRbEgoChTociMee9wno="])
+    ///     .build()?;
+    /// # Ok::<(), isahc::Error>(())
+    /// ```
+    fn pinned_public_keys<T: AsRef<str>>(self, keys: &[T]) -> Self {
+        self.configure(PinnedPublicKeys::new(keys))
     }
 }
 

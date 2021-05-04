@@ -718,6 +718,7 @@ impl HttpClient {
                 SslOption,
                 CloseConnection,
                 EnableMetrics,
+                pinned_public_keys::PinnedPublicKeys,
             ]
         );
 
