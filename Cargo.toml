@@ -32,8 +32,9 @@ middleware-api = []
 bytes = "0.5"
 crossbeam-channel = "0.4"
 crossbeam-utils = "0.7"
-curl = "0.4.25"
-curl-sys = "0.4.24"
+curl = { git = "https://github.com/yoavk/curl-rust", branch = "pinned-public-key" }
+curl-sys = { git = "https://github.com/yoavk/curl-rust", branch = "pinned-public-key" }
+
 futures-channel = "0.3"
 futures-io = "0.3"
 http = "0.2"
