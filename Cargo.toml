@@ -27,13 +27,14 @@ spnego = ["curl-sys/spnego"]
 static-curl = ["curl/static-curl"]
 static-ssl = ["curl/static-ssl"]
 middleware-api = []
+c-ares = ["curl/c-ares"]
 
 [dependencies]
 bytes = "0.5"
 crossbeam-channel = "0.4"
 crossbeam-utils = "0.7"
-curl = { git = "https://github.com/yoavk/curl-rust", branch = "pinned-public-key" }
-curl-sys = { git = "https://github.com/yoavk/curl-rust", branch = "pinned-public-key" }
+curl = { git = "https://github.com/yoavk/curl-rust", branch = "c-ares" }
+curl-sys = { git = "https://github.com/yoavk/curl-rust", branch = "c-ares" }
 
 futures-channel = "0.3"
 futures-io = "0.3"
