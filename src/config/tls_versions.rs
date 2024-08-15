@@ -1,15 +1,15 @@
 use super::SetOpt;
-use curl::easy::{Easy2, TlsVersion};
+use curl::easy::{Easy2, SslVersion};
 
 #[derive(Clone, Debug)]
 pub(crate) struct TLSVersions {
-    min_version: TlsVersion,
-    max_version: TlsVersion
+    min_version: SslVersion,
+    max_version: SslVersion,
 }
 
 impl TLSVersions {
-    pub fn new<T: AsRef<str>>(keys: &[T]) -> Self {
-        TLSVersions(keys.into_iter().map(|x| x.as_ref()).collect::<Vec<_>>().join(";"))
+    pub fn new(min_version: SslVersion, max_version: SslVersion,) -> Self {
+        TLSVersions(min_version, max_version)
     }
 }
 
