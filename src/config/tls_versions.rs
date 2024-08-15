@@ -9,7 +9,10 @@ pub(crate) struct TLSVersions {
 
 impl TLSVersions {
     pub fn new(min_version: SslVersion, max_version: SslVersion,) -> Self {
-        TLSVersions(min_version, max_version)
+        Self {
+            min_version: min_version,
+            max_version: max_version
+        }
     }
 }
 
