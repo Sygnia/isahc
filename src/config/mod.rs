@@ -22,11 +22,13 @@ pub(crate) mod proxy;
 pub(crate) mod redirect;
 pub(crate) mod ssl;
 pub(crate) mod pinned_public_keys;
+pub(crate) mod tls_versions;
 
 pub use dns::DnsCache;
 pub use redirect::RedirectPolicy;
 pub use ssl::{CaCertificate, ClientCertificate, PrivateKey, SslOption};
 use pinned_public_keys::PinnedPublicKeys;
+use tls_versions::TLSVersions;
 
 pub(crate) use self::private::ConfigurableBase;
 
@@ -442,6 +444,10 @@ pub trait Configurable: ConfigurableBase {
     /// ```
     fn pinned_public_keys<T: AsRef<str>>(self, keys: &[T]) -> Self {
         self.configure(PinnedPublicKeys::new(keys))
+    }
+
+    fn tls_versions(self, min_version: TLSVersion, max_version: TLSVersion) -> Self {
+        self.configure(TLSVersions::new(min_version, max_version))
     }
 }
 

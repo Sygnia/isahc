@@ -719,6 +719,7 @@ impl HttpClient {
                 CloseConnection,
                 EnableMetrics,
                 pinned_public_keys::PinnedPublicKeys,
+                tls_versions::TLSVersions,
             ]
         );
 
