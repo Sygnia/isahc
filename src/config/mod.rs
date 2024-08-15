@@ -14,7 +14,7 @@
 // handle.
 
 use crate::auth::{Authentication, Credentials};
-use curl::easy::Easy2;
+use curl::easy::{Easy2, SslVersion};
 use std::{iter::FromIterator, net::SocketAddr, time::Duration};
 
 pub(crate) mod dns;
@@ -446,7 +446,7 @@ pub trait Configurable: ConfigurableBase {
         self.configure(PinnedPublicKeys::new(keys))
     }
 
-    fn tls_versions(self, min_version: TLSVersion, max_version: TLSVersion) -> Self {
+    fn tls_versions(self, min_version: SslVersion, max_version: SslVersion) -> Self {
         self.configure(TLSVersions::new(min_version, max_version))
     }
 }
