@@ -18,6 +18,6 @@ impl TLSVersions {
 
 impl SetOpt for TLSVersions {
     fn set_opt<H>(&self, easy: &mut Easy2<H>) -> Result<(), curl::Error> {
-        easy.ssl_min_max_version(self.min_version, self.max_version)?;
+        easy.ssl_min_max_version(self.min_version, self.max_version)
     }
 }
