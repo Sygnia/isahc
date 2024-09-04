@@ -201,6 +201,13 @@ impl SslOption {
     /// library).
     pub const DANGER_ACCEPT_REVOKED_CERTS: Self = SslOption(0b0100);
 
+    /// Disables TLSv1.0.
+    pub const NO_TLSV1: Self = SslOption(0b1000);
+
+    /// Disables TLSv1.1.
+    pub const NO_TLSV1_1: Self = SslOption(0b10000);
+
+
     const fn contains(self, other: Self) -> bool {
         (self.0 & other.0) == other.0
     }
@@ -225,6 +232,10 @@ impl SetOpt for SslOption {
     fn set_opt<H>(&self, easy: &mut Easy2<H>) -> Result<(), curl::Error> {
         let mut opt = SslOpt::new();
         opt.no_revoke(self.contains(Self::DANGER_ACCEPT_REVOKED_CERTS));
+
+        // Apply the new options
+        opt.no_tlsv1(self.contains(Self::NO_TLSV1));
+        opt.no_tlsv1_1(self.contains(Self::NO_TLSV1_1));
 
         easy.ssl_options(&opt)?;
         easy.ssl_verify_peer(!self.contains(Self::DANGER_ACCEPT_INVALID_CERTS))?;
